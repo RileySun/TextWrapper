@@ -33,7 +33,7 @@ func main() {
 		"This line is to show what happens after the aforementioned line wrapping.",
 	}
 	game.wrapper.SetText(output)
-	game.wrapper.SetSize(80, 88)
+	game.wrapper.SetSize(40, 48)
 
 	if err := ebiten.RunGame(game); err != nil {
 		panic(err)
