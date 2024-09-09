@@ -15,7 +15,7 @@ const GAMEHEIGHT = 640
 var FONTDATA []byte
 
 type Game struct {
-	wrapper *TextWrapper
+	wrapper *textwrapper.TextWrapper
 }
 
 func main() {
@@ -33,7 +33,7 @@ func main() {
 		"This line is to show what happens after the aforementioned line wrapping.",
 	}
 	game.wrapper.SetText(output)
-	game.wrapper.SetSize(20, 28)
+	game.wrapper.SetSize(80, 88)
 
 	if err := ebiten.RunGame(game); err != nil {
 		panic(err)
