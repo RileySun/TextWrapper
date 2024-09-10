@@ -4,6 +4,7 @@ import(
 	"log"
 	"bytes"
 	"strings"
+	"image/color"
 	
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -13,6 +14,7 @@ import(
 
 type TextWrapper struct {
 	X, Y, W float64
+	Color color.Color
 	size, lineHeight float64 
 	face *text.GoTextFace
 	faceSource *text.GoTextFaceSource
@@ -50,9 +52,41 @@ func (t *TextWrapper) Draw(screen *ebiten.Image) {
 	for i, tx := range t.finalText {
 		offset := t.lineHeight * float64(i)
 		op := &text.DrawOptions{}
+		//Translate
 		op.GeoM.Translate(t.X, t.Y + offset)
+		//Color
+		if t.Color != nil {
+			r, g, b, a := t.Color.RGBA()
+			op.ColorM.Scale(float64(r), float64(g), float64(b), float64(a))
+		}
+		
 		text.Draw(screen, tx, t.face, op)
 	}
+}
+
+//Utils
+func (t *TextWrapper) findNewLines(rawText []string) []string {
+	var out []string
+	for _, s := range rawText {
+		split := strings.Split(s ,"\n")
+		out = append(out, split...)
+	}
+	return out
+}
+
+func (t *TextWrapper) split(newText string, textWidth float64) (string, string) {
+	maxWidth := t.W - 5
+	diff := maxWidth/float64(textWidth)
+	length := len([]rune(newText))
+	newLength := int(float64(length)*diff)
+	lastIndex := strings.LastIndex(newText[:newLength], " ")
+	
+	//What if there are no spaces?
+	if lastIndex == -1 {
+		return newText[:newLength], newText[newLength:]
+	}
+	
+	return newText[:lastIndex], newText[lastIndex+1:]
 }
 
 //Actions 
@@ -60,10 +94,14 @@ func (t *TextWrapper) Draw(screen *ebiten.Image) {
 //string slice. New lines will be inserted where needed as the text
 //wraps across the bounds set by the W (width) property of the TextWrapper
 func (t *TextWrapper) SetText(newText []string) {
-	t.originalText = newText
+	//Find newliens first
+	newLineText := t.findNewLines(newText)
+	
+	
+	t.originalText = newLineText
 	var output []string
 	
-	for _, textLine := range newText {
+	for _, textLine := range newLineText {
 		maxWidth := t.W - 5
 		w, _ := text.Measure(textLine, t.face, t.lineHeight)
 		var currentText string = textLine
@@ -74,7 +112,7 @@ func (t *TextWrapper) SetText(newText []string) {
 				textWidth, _ := text.Measure(currentText, t.face, t.lineHeight)
 				if maxWidth < textWidth {
 					var out string
-					out, currentText = t.Split(currentText, textWidth)
+					out, currentText = t.split(currentText, textWidth)
 					output = append(output, out)
 				} else {
 					output = append(output, currentText)
@@ -89,17 +127,12 @@ func (t *TextWrapper) SetText(newText []string) {
 	t.finalText = output
 }
 
-func (t *TextWrapper) Split(newText string, textWidth float64) (string, string) {
-	maxWidth := t.W - 5
-	diff := maxWidth/float64(textWidth)
-	length := len([]rune(newText))
-	newLength := int(float64(length)*diff)
-	lastIndex := strings.LastIndex(newText[:newLength], " ")
-	return newText[:lastIndex], newText[lastIndex+1:]
-}
-
 func (t *TextWrapper) SetSize(newSize float64, lineHeight float64) {
 	t.face.Size = newSize
 	t.lineHeight = lineHeight
 	t.SetText(t.originalText)
+}
+
+func (t *TextWrapper) GetFace() *text.GoTextFace {
+	return t.face
 }
