@@ -13,16 +13,25 @@ import(
 )
 
 type TextWrapper struct {
-	X, Y, W float64
-	Color color.Color
-	size, lineHeight float64 
+	X, Y, W, H float64 //Width must be greater than 0, 
+	Color color.NRGBA //Any image.Color should work
+	scroll, scrollMax, scrollCurrentMax, scrollVisible int //Based off height (H)
+	size, lineHeight float64 //Font Size & Line Height
 	face *text.GoTextFace
 	faceSource *text.GoTextFaceSource
 	originalText, finalText []string
 }
 
 //Create
-func NewTextWrapper(fontData []byte) *TextWrapper {
+func NewTextWrapper(width float64, height float64, fontData []byte) *TextWrapper {
+	//Make sure width and height are correct
+	if int(width) <= 0 {
+		log.Fatal("TextWrapper width must be greater than 0.")
+	}
+	if int(height) == 0 || int(height) < -1 {
+		log.Fatal("TextWrapper height must be greater than 0 or equal -1 for infinite height.")
+	}
+	
 	//Get Face Source
 	source, err := text.NewGoTextFaceSource(bytes.NewReader(fontData))
 	if err != nil {
@@ -31,7 +40,7 @@ func NewTextWrapper(fontData []byte) *TextWrapper {
 	
 	//Create
 	wrapper := &TextWrapper {
-		X:0,Y:0,W:20,
+		X:0,Y:0,W:width, H:height,
 		size:18,
 		faceSource:source,
 		face: &text.GoTextFace{
@@ -40,27 +49,24 @@ func NewTextWrapper(fontData []byte) *TextWrapper {
 			Size:      18,
 			Language:  language.English,
 		},
+		Color:color.NRGBA{R: 255, G: 255, B: 255, A: 255},
 	}
 	
 	wrapper.lineHeight = wrapper.size * 4.5
 	
 	return wrapper
-}
+} //Width must be greater than 0, height can be -1 for infinite, but needs to not be 0
 
 //Render
 func (t *TextWrapper) Draw(screen *ebiten.Image) {
-	for i, tx := range t.finalText {
-		offset := t.lineHeight * float64(i)
+	startIndex := 0
+	for i := t.scroll; i < t.scrollCurrentMax; i++ {
+		offset := t.lineHeight * float64(startIndex)
 		op := &text.DrawOptions{}
-		//Translate
 		op.GeoM.Translate(t.X, t.Y + offset)
-		//Color
-		if t.Color != nil {
-			r, g, b, a := t.Color.RGBA()
-			op.ColorM.Scale(float64(r), float64(g), float64(b), float64(a))
-		}
-		
-		text.Draw(screen, tx, t.face, op)
+		op.ColorScale.Scale(NRGBAtoFloat32(t.Color))
+		text.Draw(screen, t.finalText[i], t.face, op)
+		startIndex++
 	}
 }
 
@@ -89,14 +95,29 @@ func (t *TextWrapper) split(newText string, textWidth float64) (string, string) 
 	return newText[:lastIndex], newText[lastIndex+1:]
 }
 
+func (t *TextWrapper) calculateScroll() {
+	t.scroll, t.scrollMax = 0, len(t.finalText)
+	
+	//If infinite, skip the rest
+	if t.H == -1 {
+		t.scrollVisible = t.scrollMax
+		t.scrollCurrentMax = t.scrollMax
+		return
+	}
+	
+	//Calculate how many lines can be visible using the height of the wrapper
+	_, singleLineHeight := text.Measure("Example", t.face, t.lineHeight)
+	t.scrollVisible = int(t.H/singleLineHeight)
+	t.scrollCurrentMax = t.scroll + t.scrollVisible
+}
+
 //Actions 
 //Set text allows you to use mutltiple lines of input in the form of a
 //string slice. New lines will be inserted where needed as the text
 //wraps across the bounds set by the W (width) property of the TextWrapper
 func (t *TextWrapper) SetText(newText []string) {
-	//Find newliens first
-	newLineText := t.findNewLines(newText)
-	
+	//Find newlines first
+	newLineText := t.findNewLines(newText)	
 	
 	t.originalText = newLineText
 	var output []string
@@ -125,6 +146,7 @@ func (t *TextWrapper) SetText(newText []string) {
 	}
 	
 	t.finalText = output
+	t.calculateScroll()
 }
 
 func (t *TextWrapper) SetSize(newSize float64, lineHeight float64) {
@@ -135,4 +157,27 @@ func (t *TextWrapper) SetSize(newSize float64, lineHeight float64) {
 
 func (t *TextWrapper) GetFace() *text.GoTextFace {
 	return t.face
+}
+
+func (t *TextWrapper) ScrollUp() {
+	if t.scroll > 0 && t.H != -1 {
+		t.scrollCurrentMax--
+		t.scroll--
+	}
+}
+
+func (t *TextWrapper) ScrollDown() {
+	if t.scroll < t.scrollMax - t.scrollVisible && t.H != -1 {
+		t.scrollCurrentMax++
+		t.scroll++
+	}
+}
+
+//Color Util
+func NRGBAtoFloat32(newColor color.NRGBA) (float32, float32, float32, float32) {
+	r := (float32(newColor.R) + 0.5)/256
+	g := (float32(newColor.G) + 0.5)/256
+	b := (float32(newColor.B) + 0.5)/256
+	a := float32(1)
+	return r, g, b, a
 }
