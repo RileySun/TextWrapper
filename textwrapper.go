@@ -3,6 +3,7 @@ package textwrapper
 import(
 	"log"
 	"bytes"
+	"bufio"
 	"strings"
 	"image/color"
 	
@@ -15,7 +16,7 @@ import(
 type TextWrapper struct {
 	X, Y, W, H float64 //Width must be greater than 0, 
 	Color color.NRGBA //Any image.Color should work
-	scroll, scrollMax, scrollCurrentMax, scrollVisible int //Based off height (H)
+	Scroll, ScrollMax, ScrollCurrentMax, ScrollVisible int //Based off height (H)
 	size, lineHeight float64 //Font Size & Line Height
 	face *text.GoTextFace
 	faceSource *text.GoTextFaceSource
@@ -26,16 +27,16 @@ type TextWrapper struct {
 func NewTextWrapper(width float64, height float64, fontData []byte) *TextWrapper {
 	//Make sure width and height are correct
 	if int(width) <= 0 {
-		log.Fatal("TextWrapper width must be greater than 0.")
+		log.Fatal("TextWrapper - NewTextWrapper: ", "TextWrapper width must be greater than 0.")
 	}
 	if int(height) == 0 || int(height) < -1 {
-		log.Fatal("TextWrapper height must be greater than 0 or equal -1 for infinite height.")
+		log.Fatal("TextWrapper - NewTextWrapper: ", "TextWrapper height must be greater than 0 or equal -1 for infinite height.")
 	}
 	
 	//Get Face Source
 	source, err := text.NewGoTextFaceSource(bytes.NewReader(fontData))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("TextWrapper - NewTextWrapper: ", err.Error())
 	}
 	
 	//Create
@@ -60,7 +61,7 @@ func NewTextWrapper(width float64, height float64, fontData []byte) *TextWrapper
 //Render
 func (t *TextWrapper) Draw(screen *ebiten.Image) {
 	startIndex := 0
-	for i := t.scroll; i < t.scrollCurrentMax; i++ {
+	for i := t.Scroll; i < t.ScrollCurrentMax; i++ {
 		offset := t.lineHeight * float64(startIndex)
 		op := &text.DrawOptions{}
 		op.GeoM.Translate(t.X, t.Y + offset)
@@ -96,19 +97,19 @@ func (t *TextWrapper) split(newText string, textWidth float64) (string, string) 
 }
 
 func (t *TextWrapper) calculateScroll() {
-	t.scroll, t.scrollMax = 0, len(t.finalText)
+	t.Scroll, t.ScrollMax = 0, len(t.finalText)
 	
 	//If infinite, skip the rest
 	if t.H == -1 {
-		t.scrollVisible = t.scrollMax
-		t.scrollCurrentMax = t.scrollMax
+		t.ScrollVisible = t.ScrollMax
+		t.ScrollCurrentMax = t.ScrollMax
 		return
 	}
 	
 	//Calculate how many lines can be visible using the height of the wrapper
 	_, singleLineHeight := text.Measure("Example", t.face, t.lineHeight)
-	t.scrollVisible = int(t.H/singleLineHeight)
-	t.scrollCurrentMax = t.scroll + t.scrollVisible
+	t.ScrollVisible = int(t.H/singleLineHeight)
+	t.ScrollCurrentMax = t.Scroll + t.ScrollVisible
 }
 
 //Actions 
@@ -149,6 +150,21 @@ func (t *TextWrapper) SetText(newText []string) {
 	t.calculateScroll()
 }
 
+func (t *TextWrapper) SetTextFromBytes(byt []byte) {
+	scanner := bufio.NewScanner(bufio.NewReader(bytes.NewReader(byt)))
+	scanner.Split(bufio.ScanLines)
+	
+	var textLines []string
+	for scanner.Scan() {
+		textLine := scanner.Text()
+		if textLine != "" {
+			textLines = append(textLines, textLine + "\n")	
+		}
+	}
+	
+	t.SetText(textLines)
+} //Set text from a loaded byte slice (file)
+
 func (t *TextWrapper) SetSize(newSize float64, lineHeight float64) {
 	t.face.Size = newSize
 	t.lineHeight = lineHeight
@@ -159,19 +175,32 @@ func (t *TextWrapper) GetFace() *text.GoTextFace {
 	return t.face
 }
 
-func (t *TextWrapper) ScrollUp() {
-	if t.scroll > 0 && t.H != -1 {
-		t.scrollCurrentMax--
-		t.scroll--
-	}
-}
+func (t *TextWrapper) ScrollUp(scrollAmount int) {
+	//Dont scroll if not a scrolling Wrapper
+	if t.H == -1 {
+		return
+	}  
 
-func (t *TextWrapper) ScrollDown() {
-	if t.scroll < t.scrollMax - t.scrollVisible && t.H != -1 {
-		t.scrollCurrentMax++
-		t.scroll++
+	if t.Scroll - scrollAmount > 0 {
+		t.ScrollCurrentMax -= scrollAmount
+		t.Scroll -= scrollAmount
+	} else {
+		t.Scroll = 0
+		t.ScrollCurrentMax = t.ScrollVisible
 	}
-}
+}//Scroll up by scroll amount if possible
+
+func (t *TextWrapper) ScrollDown(scrollAmount int) {
+	//Dont scroll if not a scrolling Wrapper
+	if t.H == -1 {
+		return
+	}  
+
+	if t.Scroll + scrollAmount < t.ScrollMax - t.ScrollVisible {
+		t.ScrollCurrentMax += scrollAmount
+		t.Scroll += scrollAmount
+	}
+}//Scroll down by scroll amount if possible
 
 //Color Util
 func NRGBAtoFloat32(newColor color.NRGBA) (float32, float32, float32, float32) {

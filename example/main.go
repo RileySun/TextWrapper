@@ -62,12 +62,12 @@ func main() {
 func (g *Game) Update() error {
 	keyTimer += 0.1
 	if key(ebiten.KeyUp) && keyTimer > 1 {
-		g.scroll.ScrollUp()
+		g.scroll.ScrollUp(1)
 		keyTimer = 0
 	}
 	
 	if key(ebiten.KeyDown) && keyTimer > 1 {
-		g.scroll.ScrollDown()
+		g.scroll.ScrollDown(1)
 		keyTimer = 0
 	}
 
