@@ -147,6 +147,12 @@ func (t *TextWrapper) SetText(newText []string) {
 	}
 	
 	t.finalText = output
+	
+	//errors with only one line of text
+	if len(t.finalText) == 1 {
+		t.finalText = append(t.finalText, "")
+	}
+	
 	t.calculateScroll()
 }
 
