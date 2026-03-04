@@ -3,4 +3,4 @@ Little addon to the ebiten engine for creating wrappable text from a string slic
 Currently only supports left to right horizontal wrapping.
 
 **DEPRECATED AS OF MARCH 2026**
-**Proejct moved under [ubiten] (https://github.com/RileySun/ubiten)**
+**Project moved under [ubiten] (https://github.com/RileySun/ubiten)**
